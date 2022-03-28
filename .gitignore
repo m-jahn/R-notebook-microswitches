@@ -1,0 +1,10 @@
+*.Rproj
+*.Rproj.user
+*.Rhistory
+*.RData
+*.Ruserdata
+data/input/*.txt
+data/input/*.ods
+data/input/*.xlsx
+data/input/*.xls
+pipeline/*.nb.html
