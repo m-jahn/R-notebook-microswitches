@@ -60,6 +60,7 @@ if (window.hljs) {
 
 
 
+
 <style type="text/css">
 .main-container {
   max-width: 940px;
@@ -80,6 +81,9 @@ button.code-folding-btn:focus {
 }
 summary {
   display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
 }
 pre code {
   padding: 0;
@@ -167,13 +171,20 @@ pre code {
 </div>
 
 
-<div id="r-notebook-amino-acids" class="section level1">
-<h1>R-notebook-amino-acids</h1>
-<p>Data and analysis pipelines for amino acid supplementation experiments in Synechocystis.</p>
+<div id="r-notebook-microswitches" class="section level1">
+<h1>R-notebook-microswitches</h1>
+<p>Analysis of human Frizzled 5 receptor mutants.</p>
 <div id="overview" class="section level3">
 <h3>Overview</h3>
-<p>This repository contains data from the analysis of a <strong>CRISPRi repression library</strong>. The experiments were carried out in the model cyanobacterium <em>Synechocystis sp.</em> PCC 6803. The repository contains raw data, processed data and R notebooks (<code>*.Rmd</code>) for next generation sequencing (NGS) of CRISPRi repression mutants.</p>
-<p>All care was taken to adhere to good scientific practice in terms of statistics, reproducibility and code documentation. Please report any errors by filing a <a href="https://github.com/m-jahn/R-notebook-amino-acids/issues">github issue</a> for this repository, or contact <a href="mailto:michael.jahn@scilifelab.se" class="email">michael.jahn@scilifelab.se</a>.</p>
+<p>This R notebook attempts the analysis of an array of mutants in one of the 10 human <a href="https://en.wikipedia.org/wiki/Frizzled">Frizzled</a> receptors, Frizzled 5 (FZD5). Each mutant was predicted to alter receptor function based on computational structure/function analysis. The mutants are expected to either promote or repress receptor activation through Wnt binding. The canonical signaling cascade is: Wnt –&gt; FZDR –&gt; DVL –&gt; GSK-3b –&gt; APC –&gt; beta-catenin –&gt; gene regulation.</p>
+<p>Different types of experimental data are available:</p>
+<ul>
+<li><code>data/input/FZD_mutations.csv</code> - original GPCR computer model prediction of mutant effects</li>
+<li><code>data/input/DVL_shift.csv</code> - Dishevelled (DVL) shift assay. Measures the phosphorylation status of the intracellular signal protein DVL through the FZD5 receptor (and its mutants)</li>
+<li><code>data/input/DEP_recruitment.csv</code> - DEP recruitment assay. DEP is a truncated DVL and recruitment is measured via BRET, that indicates proximity of the two proteins with fluorescence transfer</li>
+<li><code>data/input/TOPFlash.csv</code> - Top flash assay. Measures if a target gene of the beta-catenin signaling pathway becomes activated, relative to WT</li>
+</ul>
+<p>All care was taken to adhere to good scientific practice in terms of statistics, reproducibility and code documentation. Please report any errors by filing a <a href="https://github.com/m-jahn/R-notebook-microswitches">github issue</a> for this repository, or contact <a href="mailto:michael.jahn@scilifelab.se" class="email">michael.jahn@scilifelab.se</a>.</p>
 </div>
 <div id="contents" class="section level3">
 <h3>Contents</h3>
@@ -181,7 +192,7 @@ pre code {
 <li><code>data</code> - directory containing the input and output data</li>
 <li><code>docs</code>- rendered pipeline in <code>html</code> format
 <ul>
-<li><a href="https://m-jahn.github.io/R-notebook-amino-acids/Amino_acid_analysis.nb.html">Investigation of the effect of amino acid supplementation on fitness</a></li>
+<li><a href="https://m-jahn.github.io/R-notebook-microswitches/Microswitches-analysis.nb.html">Analysis of human Frizzled receptor mutants</a></li>
 </ul></li>
 <li><code>figures</code> - exported figures from pipelines</li>
 <li><code>pipeline</code> - data processing pipelines, R markdown format (<code>.Rmd</code>)</li>
@@ -192,7 +203,7 @@ pre code {
 <p>The pipelines in this repository are self-contained and executable. The code <em>and</em> the documentation are part of one and the same R markdown document for each pipeline. Pipelines can be downloaded and executed from the <code>pipeline</code> sub-folders. To simply view the rendered pipelines follow the links to the <code>*.html</code> reports at <a href="#Contents">Contents</a>.</p>
 <p>To download the repository on your local drive use <code>git clone</code> in a (linux) terminal:</p>
 <pre class="bash"><code>cd /your-target-folder
-git clone https://github.com/m-jahn/R-notebook-amino-acids</code></pre>
+git clone https://github.com/m-jahn/R-notebook-microswitches</code></pre>
 <p>Open a pipeline with Rstudio and execute code (chunks) with the <code>Run</code> button. Alternatively, open an interactive R session and render the R markdown pipeline:</p>
 <pre class="bash"><code>require(rmarkdown)
 rmarkdown::render(&quot;pipeline.Rmd&quot;)</code></pre>
