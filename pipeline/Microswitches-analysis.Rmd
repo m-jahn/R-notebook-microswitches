@@ -22,6 +22,7 @@ Different types of experimental data ares available:
 - `data/input/DVL_shift.csv` - Dishevelled (DVL) shift assay. Measures the phosphorylation status of the intracellular signal protein DVL through the FZD5 receptor (and its mutants)
 - `data/input/DEP_recruitment.csv` - DEP recruitment assay. DEP is a truncated DVL and recruitment is measured via BRET, that indicates proximity of the two proteins with fluorescence transfer
 - `data/input/TOPFlash.csv` - Top flash assay. Measures if a target gene of the beta-catenin signaling pathway becomes activated, relative to WT
+- `data/input/Gq4Ains.csv` - 
 
 # Prerequisites
 
@@ -60,15 +61,13 @@ df_dep_recr <- read_csv("../data/input/DEP_recruitment.csv", col_types = cols())
   mutate(mutation = factor(mutation, unique(mutation)))
 
 df_dvl_shift <- read_csv("../data/input/DVL_shift.csv", col_types = cols()) %>%
-  separate(mutation, c("n_mutation", "mutation"), sep = "-") %>%
-  mutate(n_mutation = as.numeric(n_mutation)) %>%
-  arrange(n_mutation) %>%
   mutate(mutation = factor(mutation, unique(mutation)))
 
 df_top_flash <- read_csv("../data/input/TOPFlash.csv", col_types = cols()) %>%
-  separate(mutation, c("n_mutation", "mutation"), sep = "-") %>%
-  mutate(mutation = factor(mutation, unique(mutation))) %>%
-  mutate(n_mutation = as.numeric(n_mutation))
+  mutate(mutation = factor(mutation, unique(mutation)))
+
+df_gq4a <- read_csv("../data/input/Gq4Ains.csv", col_types = cols()) %>%
+  mutate(mutation = factor(mutation, unique(mutation)))
 ```
 
 # Exploratory analysis
@@ -138,7 +137,7 @@ df_dep_recr <- df_dep_recr %>%
 
 ```{r, fig.width = 6, fig.height = 4}
 df_dvl_shift %>%
-  xyplot(DVL_shift_percent ~ mutation, .,
+  xyplot(value ~ mutation, .,
     par.settings = custom.colorblind(),
     between = list(x = 0.5, y = 0.5),
     scales = list(alternating = FALSE, x = list(rot = 90)),
@@ -153,7 +152,7 @@ df_dvl_shift %>%
 
 ```{r, fig.width = 6, fig.height = 4}
 df_top_flash %>%
-  xyplot(rel_intensity ~ mutation, .,
+  xyplot(value ~ mutation, .,
     par.settings = custom.colorblind(),
     between = list(x = 0.5, y = 0.5),
     scales = list(alternating = FALSE, x = list(rot = 90)),
@@ -165,36 +164,40 @@ df_top_flash %>%
   )
 ```
 
+## GQ 4-alanin insertion
+
+```{r, fig.width = 6, fig.height = 4}
+df_gq4a %>%
+  xyplot(value ~ mutation, .,
+    par.settings = custom.colorblind(),
+    between = list(x = 0.5, y = 0.5),
+    scales = list(alternating = FALSE, x = list(rot = 90)),
+    panel = function(x, y, ...) {
+      panel.grid(h = -1, v = -1, col = grey(0.9))
+      panel.errbars(as.numeric(x)+0.5, y, col = grey(0.75), ewidth = 0, ...)
+      panel.xyplot(x, y, ...)
+    }
+  )
+```
 ## Combine assays and check correlation
 
 There are different numbers of replicates. We need to summarize all tables to mean +/- standard deviation and then combine them.
 
 ```{r}
-df_combined <- inner_join(by = c("n_mutation", "mutation"),
-  df_dep_recr %>%
-  pivot_wider(names_from = "type", values_from = "value") %>%
-  group_by(n_mutation, mutation) %>%
+df_combined <- bind_rows(
+  df_dep_recr,
+  df_dvl_shift,
+  df_top_flash,
+  df_gq4a)
+
+df_summary <- df_combined %>%
+  group_by(type, n_mutation, mutation) %>%
   summarize(.groups = "drop",
-    mean_BRET50 = mean(BRET50),
-    mean_BRETmax = mean(BRETmax),
-    sd_BRET50 = sd(BRET50),
-    sd_BRETmax = sd(BRETmax),
-  ),
-  df_dvl_shift %>%
-  group_by(n_mutation, mutation) %>%
-  summarize(.groups = "drop",
-    mean_dvl_shift = mean(DVL_shift_percent),
-    sd_dvl_shift = sd(DVL_shift_percent),
-  )) %>%
-  inner_join(by = c("n_mutation", "mutation"),
-    df_top_flash %>% group_by(n_mutation, mutation) %>%
-    summarize(.groups = "drop",
-      mean_top_flash = mean(rel_intensity),
-      sd_top_flash = sd(rel_intensity),
-    )
+    mean_value = mean(value, na.rm = TRUE),
+    sd_value = sd(value, na.rm = TRUE)
   )
 
-head(df_combined)
+head(df_summary)
 ```
 
 Check pairwise correlation of variables.
@@ -204,8 +207,10 @@ Check pairwise correlation of variables.
 - BRET 50 is anti-correlated DVL shift and top flash
 
 ```{r, fig.width = 6, fig.height = 6}
-custom_splom(df_combined %>%
-  select(matches("^mean_")), pch = 19, cex = 1, col = grey(0.4, 0.4))
+df_summary %>% select(-sd_value) %>%
+  pivot_wider(values_from = mean_value, names_from = type) %>%
+  select(matches("BRET|DVL|GQ4|TOP")) %>%
+  custom_splom(pch = 19, cex = 1, col = grey(0.4, 0.4))
 ```
 
 Which mutations are most like each similar in their behavior?
@@ -213,14 +218,15 @@ We need to cluster mutations by similarity of experimental results.
 In order to make different variables comparable, we rescale every var to a range between zero and one.
 
 ```{r}
-mat_combined <- df_combined %>%
-  select(matches("^mutation|mean\\_")) %>%
+mat_summary <- df_summary %>% select(-sd_value) %>%
+  pivot_wider(values_from = mean_value, names_from = type) %>%
+  select(matches("^mutation|BRET|DVL|GQ4|TOP")) %>%
   column_to_rownames(var = "mutation") %>%
   as.matrix %>% apply(2, rescale)
 
 # create cluster for reordering
-mat_cluster <- mat_combined %>% dist %>% hclust(method = "ward.D2")
-mat_heatmap <- mat_combined[order.dendrogram(as.dendrogram(mat_cluster)), ]
+mat_cluster <- mat_summary %>% dist %>% hclust(method = "ward.D2")
+mat_heatmap <- mat_summary[order.dendrogram(as.dendrogram(mat_cluster)), c(1,2,4,3,5)]
 ```
 
 How many clusters are optimal?
@@ -270,7 +276,7 @@ plot_cluster_dend <- mat_cluster %>% as.dendrogram %>%
 gridExtra::grid.arrange(
   # coords for unit: top, right, bottom, left
   plot_cluster_dend + 
-    theme(plot.margin = unit(c(0.25, 0.12, -0.3, 0.193),"npc")),
+    theme(plot.margin = unit(c(0.25, 0.118, -0.3, 0.172),"npc")),
   plot_heatmap,
   nrow = 2
 )
@@ -282,12 +288,13 @@ set.seed(123)
 
 # run nMDS analysis
 NMDS <- mat_heatmap %>% dist %>% metaMDS(trace = 0)
-df_nmds <- NMDS$points %>% as_tibble(rownames = "mutant") %>%
-  left_join(enframe(cutreeord(mat_cluster, k = n_clusters), "mutant", "cluster"))
+df_nmds <- NMDS$points %>% as_tibble(rownames = "mutation") %>%
+  left_join(enframe(cutreeord(mat_cluster, k = n_clusters), "mutation", "cluster")) %>%
+  mutate(MDS2 = MDS2*-1)
 
 plot_nmds <- xyplot(MDS2 ~ MDS1, df_nmds,
     groups = cluster, par.settings = custom.colorblind(),
-    aspect = 1, main = "nMDS", label = df_nmds$mutant,
+    aspect = 1, main = "nMDS", label = df_nmds$mutation,
     panel = function(x, y, label, ...) {
       panel.grid(h = -1, v = -1, col = grey(0.9))
       panel.xyplot(x, y, ...)
@@ -300,12 +307,12 @@ plot_nmds <- xyplot(MDS2 ~ MDS1, df_nmds,
 # run PCA analysis
 pca_result <- prcomp(mat_heatmap)
 df_PCA <- pca_result$x %>%
-  as_tibble(rownames = "mutant") %>%
-  left_join(enframe(cutreeord(mat_cluster, k = n_clusters), "mutant", "cluster"))
+  as_tibble(rownames = "mutation") %>%
+  left_join(enframe(cutreeord(mat_cluster, k = n_clusters), "mutation", "cluster"))
 
 plot_pca <- xyplot(PC2 ~ PC1, df_PCA,
     groups = cluster, z = 0.3+rescale(df_PCA$PC3),
-    par.settings = custom.colorblind(), label = df_PCA$mutant,
+    par.settings = custom.colorblind(), label = df_PCA$mutation,
     aspect = 1, main = "PCA",
     panel = function(x, y, z, label, ...) {
       panel.grid(h = -1, v = -1, col = grey(0.9))
@@ -342,7 +349,7 @@ plot_pca_eig <- get_eigenvalue(pca_result) %>%
 
 # multiply eigenvalues (variation) with variable contribution
 plot_pca_var <- data.frame(as.matrix(get_pca_var(pca_result)$contrib) *
-  rep(get_eigenvalue(pca_result)$variance.percent/100, each = 4)) %>%
+  rep(get_eigenvalue(pca_result)$variance.percent/100, each = 5)) %>%
   rownames_to_column("variable") %>%
   pivot_longer(cols = -variable, names_to = "dimension", values_to = "variance") %>%
   mutate(dimension = str_remove(dimension, "Dim.")) %>%
@@ -362,6 +369,54 @@ print(plot_pca_var, split = c(2,1,2,1))
 ```
 
 # Structure function relationship
+
+To plot activity data on an SVG map of a receptor, we need the custom R package `fluctuator` that can import and manipulate SVG graphic files.
+
+```{r, eval = FALSE}
+devtools::install_github("m-jahn/fluctuator")
+```
+
+Import the SVG of the 'snakeplot', the representation of a receptor as AA residues curled in their different membrane spanning domains.
+
+```{r}
+library(fluctuator)
+
+svg_fzd5 <- read_svg("../data/input/FZD5_human_snakeplot.svg")
+head(svg_fzd5@summary)
+```
+
+Manipulate certain amino acids by changing color.
+We can identify nodes by their `id` field, and make changes to fill and stroke color.
+
+```{r}
+get_attributes(svg_fzd5, node_attr = "id", node = "333",
+  attr = c("id", "class", "fill", "stroke"))
+```
+
+```{r}
+df_cluster <- df_PCA %>% filter(mutation != "WT") %>%
+  select(mutation, cluster) %>%
+  mutate(position = str_sub(mutation, 2, 4)) %>%
+  mutate(color = custom_colors[cluster])
+
+svg_fzd5_color <- set_attributes(svg_fzd5, node_attr = "id",
+  node = df_cluster$position, attr = "fill",
+  pattern = ".*",
+  replacement = df_cluster$color)
+```
+
+Export modified SVG.
+
+```{r}
+write_svg(svg_fzd5_color, "../data/output/FZD5_human_snakeplot_color.svg")
+```
+
+The resulting graphic:
+
+Original snake plot  |  Color-coded snake plot
+:-------------------------:|:-------------------------:
+![](../data/input/FZD5_human_snakeplot.svg)  |  ![](../data/output/FZD5_human_snakeplot_color.svg)
+
 
 # Session Info
 

@@ -7,4 +7,5 @@ data/input/*.txt
 data/input/*.ods
 data/input/*.xlsx
 data/input/*.xls
+data/output/*.png
 pipeline/*.nb.html
