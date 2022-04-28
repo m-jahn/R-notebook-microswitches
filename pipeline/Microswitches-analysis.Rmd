@@ -68,6 +68,9 @@ df_top_flash <- read_csv("../data/input/TOPFlash.csv", col_types = cols()) %>%
 
 df_gq4a <- read_csv("../data/input/Gq4Ains.csv", col_types = cols()) %>%
   mutate(mutation = factor(mutation, unique(mutation)))
+
+df_bret0 <- read_csv("../data/input/BRET0_assay.csv", col_types = cols()) %>%
+  mutate(mutation = factor(mutation, unique(mutation)))
 ```
 
 # Exploratory analysis
@@ -125,7 +128,7 @@ print(plot_bret_cor1, split = c(1,1,2,1), more = TRUE)
 print(plot_bret_cor2, split = c(2,1,2,1))
 ```
 
-THe correlation and the distribution of the data improves when BRET50 data is log-transformed. Although more a cosmetic approach, we log10-transform the BRET50 data to make more use of it for now.
+The correlation and the distribution of the data improves when BRET50 data is log-transformed. Although more a cosmetic approach, we log10-transform the BRET50 data to make more use of it for now.
 
 ```{r}
 df_dep_recr <- df_dep_recr %>%
@@ -179,6 +182,23 @@ df_gq4a %>%
     }
   )
 ```
+
+## BRET-zero assay (conformation sensor)
+
+```{r, fig.width = 6, fig.height = 4}
+df_bret0 %>%
+  xyplot(value ~ mutation, .,
+    par.settings = custom.colorblind(),
+    between = list(x = 0.5, y = 0.5),
+    scales = list(alternating = FALSE, x = list(rot = 90)),
+    panel = function(x, y, ...) {
+      panel.grid(h = -1, v = -1, col = grey(0.9))
+      panel.errbars(as.numeric(x)+0.5, y, col = grey(0.75), ewidth = 0, ...)
+      panel.xyplot(x, y, ...)
+    }
+  )
+```
+
 ## Combine assays and check correlation
 
 There are different numbers of replicates. We need to summarize all tables to mean +/- standard deviation and then combine them.
@@ -188,7 +208,8 @@ df_combined <- bind_rows(
   df_dep_recr,
   df_dvl_shift,
   df_top_flash,
-  df_gq4a)
+  df_gq4a,
+  df_bret0)
 
 df_summary <- df_combined %>%
   group_by(type, n_mutation, mutation) %>%
@@ -226,7 +247,7 @@ mat_summary <- df_summary %>% select(-sd_value) %>%
 
 # create cluster for reordering
 mat_cluster <- mat_summary %>% dist %>% hclust(method = "ward.D2")
-mat_heatmap <- mat_summary[order.dendrogram(as.dendrogram(mat_cluster)), c(1,2,4,3,5)]
+mat_heatmap <- mat_summary[order.dendrogram(as.dendrogram(mat_cluster)), c(1,2,3,5,4,6)]
 ```
 
 How many clusters are optimal?
@@ -254,7 +275,7 @@ xyplot(avg_width ~ n_cluster,
 
 Heatmap and similarity dendrogram.
 
-```{r, fig.width = 7, fig.height = 4.5}
+```{r, fig.width = 7, fig.height = 4.75}
 plot_heatmap <- levelplot(mat_heatmap,
   par.settings = custom.colorblind(),
   col.regions = custom_range(10),
@@ -276,7 +297,7 @@ plot_cluster_dend <- mat_cluster %>% as.dendrogram %>%
 gridExtra::grid.arrange(
   # coords for unit: top, right, bottom, left
   plot_cluster_dend + 
-    theme(plot.margin = unit(c(0.25, 0.118, -0.3, 0.172),"npc")),
+    theme(plot.margin = unit(c(0.25, 0.118, -0.28, 0.172),"npc")),
   plot_heatmap,
   nrow = 2
 )
@@ -330,7 +351,7 @@ print(plot_pca, split = c(2,1,2,1))
 Some details on the PCA result:
 
 - eigenvalues measure the amount of variation retained by each principal component
-- variable contribution measure the amount of variation explained by each variable
+- variable contribution measures the amount of variation explained by each variable
 
 See excellent description at:
 http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/112-pca-principal-component-analysis-essentials/
@@ -349,7 +370,7 @@ plot_pca_eig <- get_eigenvalue(pca_result) %>%
 
 # multiply eigenvalues (variation) with variable contribution
 plot_pca_var <- data.frame(as.matrix(get_pca_var(pca_result)$contrib) *
-  rep(get_eigenvalue(pca_result)$variance.percent/100, each = 5)) %>%
+  rep(get_eigenvalue(pca_result)$variance.percent/100, each = length(pca_result$sdev))) %>%
   rownames_to_column("variable") %>%
   pivot_longer(cols = -variable, names_to = "dimension", values_to = "variance") %>%
   mutate(dimension = str_remove(dimension, "Dim.")) %>%
