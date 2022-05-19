@@ -73,6 +73,19 @@ df_bret0 <- read_csv("../data/input/BRET0_assay.csv", col_types = cols()) %>%
   mutate(mutation = factor(mutation, unique(mutation)))
 ```
 
+Import an annotation file that matches regular AA postions to Ballasrteros-Weinstein annotation for GPCR receptors.
+In this annotation, each AA is denominated by one digit representing one of 7 TM-helices, and a positional code representing the distance to the most conserved AA in that helix with (position `.50`). For example, `A 4.48` is an Alanin residue in TM domain 4, 2 residues away from the most conserved residue.
+
+```{r}
+df_nom <- read_csv("../data/input/BallesteroNom.csv", col_types = cols()) %>%
+  mutate(mutation_bw = paste0(
+    str_sub(mutation_bw, 1, 1), "^'",
+    str_extract(mutation_bw, "[0-9]+\\.[0-9]+"), "'*",
+    str_extract(mutation_bw, ".$")
+  )) %>%
+  add_row(mutation = "WT", mutation_bw = "WT")
+```
+
 # Exploratory analysis
 
 ## DEP recruitment
@@ -188,13 +201,13 @@ df_gq4a %>%
 ```{r, fig.width = 6, fig.height = 4}
 df_bret0 %>%
   xyplot(value ~ mutation, .,
+    errors = .[["stdev"]],
     par.settings = custom.colorblind(),
     between = list(x = 0.5, y = 0.5),
     scales = list(alternating = FALSE, x = list(rot = 90)),
-    panel = function(x, y, ...) {
+    panel = function(x, y, errors, ...) {
       panel.grid(h = -1, v = -1, col = grey(0.9))
-      panel.errbars(as.numeric(x)+0.5, y, col = grey(0.75), ewidth = 0, ...)
-      panel.xyplot(x, y, ...)
+      panel.errbars(x, y, error_margin = errors, ewidth = 0, ...)
     }
   )
 ```
@@ -209,10 +222,11 @@ df_combined <- bind_rows(
   df_dvl_shift,
   df_top_flash,
   df_gq4a,
-  df_bret0)
+  df_bret0) %>%
+  left_join(df_nom)
 
 df_summary <- df_combined %>%
-  group_by(type, n_mutation, mutation) %>%
+  group_by(type, n_mutation, mutation, mutation_bw) %>%
   summarize(.groups = "drop",
     mean_value = mean(value, na.rm = TRUE),
     sd_value = sd(value, na.rm = TRUE)
@@ -239,7 +253,7 @@ We need to cluster mutations by similarity of experimental results.
 In order to make different variables comparable, we rescale every var to a range between zero and one.
 
 ```{r}
-mat_summary <- df_summary %>% select(-sd_value) %>%
+mat_summary <- df_summary %>% select(-sd_value, -mutation_bw) %>%
   pivot_wider(values_from = mean_value, names_from = type) %>%
   select(matches("^mutation|BRET|DVL|GQ4|TOP")) %>%
   column_to_rownames(var = "mutation") %>%
@@ -276,12 +290,19 @@ xyplot(avg_width ~ n_cluster,
 Heatmap and similarity dendrogram.
 
 ```{r, fig.width = 7, fig.height = 4.75}
-plot_heatmap <- levelplot(mat_heatmap,
+# reorder dendrogram leaves a bit
+dend_new_ord <- c(1:12, 20:27,13:19)
+format_labels <- function(lab) {unname(deframe(df_nom)[lab])}
+
+plot_heatmap <- levelplot(mat_heatmap[dend_new_ord, ],
   par.settings = custom.colorblind(),
   col.regions = custom_range(10),
   at = seq(0, 1, 0.1), aspect = "fill",
   xlab = "", ylab = "",
-  scales = list(x = list(rot = 90)),
+  scales = list(x = list(rot = 90,
+    labels = parse(text = format_labels(
+      rownames(mat_heatmap[dend_new_ord, ])))
+    )),
   panel = function(x, y, z, ...) {
     panel.levelplot(x, y, z, ...)
     panel.abline(h = 1:ncol(mat_heatmap)+0.5, col = "white", lwd = 1.5)
@@ -289,6 +310,7 @@ plot_heatmap <- levelplot(mat_heatmap,
 )
 
 plot_cluster_dend <- mat_cluster %>% as.dendrogram %>%
+  rotate(dend_new_ord) %>%
   set("branches_k_col", custom_colors[1:n_clusters], k = n_clusters) %>%
   set("branches_lwd", 0.5) %>%
   as.ggdend %>%
@@ -310,8 +332,9 @@ set.seed(123)
 # run nMDS analysis
 NMDS <- mat_heatmap %>% dist %>% metaMDS(trace = 0)
 df_nmds <- NMDS$points %>% as_tibble(rownames = "mutation") %>%
-  left_join(enframe(cutreeord(mat_cluster, k = n_clusters), "mutation", "cluster")) %>%
-  mutate(MDS2 = MDS2*-1)
+  left_join(by = "mutation",
+    enframe(cutreeord(mat_cluster, k = n_clusters), "mutation", "cluster")) %>%
+  mutate(cluster = recode(cluster, `2` = 3, `3` = 2, `1` = 1))
 
 plot_nmds <- xyplot(MDS2 ~ MDS1, df_nmds,
     groups = cluster, par.settings = custom.colorblind(),
@@ -329,7 +352,9 @@ plot_nmds <- xyplot(MDS2 ~ MDS1, df_nmds,
 pca_result <- prcomp(mat_heatmap)
 df_PCA <- pca_result$x %>%
   as_tibble(rownames = "mutation") %>%
-  left_join(enframe(cutreeord(mat_cluster, k = n_clusters), "mutation", "cluster"))
+  left_join(by = "mutation",
+    enframe(cutreeord(mat_cluster, k = n_clusters), "mutation", "cluster")) %>%
+  mutate(cluster = recode(cluster, `2` = 3, `3` = 2, `1` = 1))
 
 plot_pca <- xyplot(PC2 ~ PC1, df_PCA,
     groups = cluster, z = 0.3+rescale(df_PCA$PC3),
@@ -414,21 +439,61 @@ get_attributes(svg_fzd5, node_attr = "id", node = "333",
   attr = c("id", "class", "fill", "stroke"))
 ```
 
+Table with mutants and associated colors.
+
 ```{r}
 df_cluster <- df_PCA %>% filter(mutation != "WT") %>%
   select(mutation, cluster) %>%
   mutate(position = str_sub(mutation, 2, 4)) %>%
   mutate(color = custom_colors[cluster])
+```
 
-svg_fzd5_color <- set_attributes(svg_fzd5, node_attr = "id",
+First change color code to something more subtle for all non-mutant positions.
+How many AA residues do we need to change?
+
+```{r}
+svg_fzd5@summary %>% filter(str_detect(id, "^[0-9]+$")) %>%
+  pull(id) %>% as.numeric %>% range
+```
+
+Set `fill` of non-mutant AA residues to light grey, `stroke` to white, and text label `fill` also to white.
+
+```{r}
+svg_fzd5_grey <- set_attributes(
+  svg_fzd5, node_attr = "id",
+  node = as.character(1:585)[-as.numeric(df_cluster$position)],
+  attr = "fill",
+  pattern = ".*",
+  replacement = "#C7C7C7")
+
+svg_fzd5_grey <- set_attributes(
+  svg_fzd5_grey, node_attr = "id",
+  node = as.character(1:585)[-as.numeric(df_cluster$position)],
+  attr = "stroke",
+  pattern = ".*",
+  replacement = "#FFFFFF")
+
+svg_fzd5_grey <- set_attributes(
+  svg_fzd5_grey, node_attr = "id",
+  node = paste0(as.character(1:585)[-as.numeric(df_cluster$position)], "t"),
+  attr = "fill",
+  pattern = ".*",
+  replacement = "#FFFFFF")
+
+# export SVG
+write_svg(svg_fzd5_grey, "../data/output/FZD5_human_snakeplot_grey.svg")
+```
+
+Set `fill` of all mutant AA residues to the respective cluster color, while keeping `stroke` black.
+
+```{r}
+svg_fzd5_color <- set_attributes(
+  svg_fzd5_grey, node_attr = "id",
   node = df_cluster$position, attr = "fill",
   pattern = ".*",
   replacement = df_cluster$color)
-```
 
-Export modified SVG.
-
-```{r}
+# export SVG
 write_svg(svg_fzd5_color, "../data/output/FZD5_human_snakeplot_color.svg")
 ```
 
