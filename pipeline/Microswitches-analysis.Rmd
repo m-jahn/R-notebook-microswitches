@@ -249,22 +249,29 @@ Check pairwise correlation of variables.
 - BRET 50 is anti-correlated DVL shift and top flash
 
 ```{r, fig.width = 6, fig.height = 6}
-df_summary %>% select(-sd_value) %>%
+fig_splom <- df_summary %>% select(-sd_value) %>%
   pivot_wider(values_from = mean_value, names_from = type) %>%
   select(matches("BRET|DVL|GQ4|TOP")) %>%
   custom_splom(pch = 19, cex = 1, col = grey(0.4, 0.4),
     col_palette = custom_range(10))
-```
-Draw extra legend using `draw.colorkey` from `lattice::levelplot()` function.
 
-```{r, fig.width = 2, fig.height = 3}
+print(fig_splom)
+```
+- Export figure
+- Draw extra legend using `draw.colorkey` from `lattice::levelplot()` function.
+
+```{r}
+svg("../figures/figure_splom.svg", width = 6, height = 6)
+print(fig_splom)
+dev.off()
+
+svg("../figures/figure_splom_legend.svg", width = 2, height = 3)
 grid::grid.newpage()
 grid::pushViewport(
   grid::viewport(x = 0.5, y = 0.5,
     width = 0.9, height = 0.9
   )
 )
-
 grid::grid.draw(
   lattice::draw.colorkey(key = list(
     space = "right",
@@ -273,6 +280,7 @@ grid::grid.draw(
     width = 1
   ))
 )
+dev.off()
 ```
 
 Which mutations are most like each other in their behavior?
@@ -353,6 +361,18 @@ gridExtra::grid.arrange(
 )
 ```
 
+```{r, include = FALSE}
+svg("../figures/figure_heatmap.svg", width = 7, height = 4.75)
+gridExtra::grid.arrange(
+  # coords for unit: top, right, bottom, left
+  plot_cluster_dend + 
+    theme(plot.margin = unit(c(0.25, 0.118, -0.28, 0.165),"npc")),
+  plot_heatmap,
+  nrow = 2
+)
+dev.off()
+```
+
 ```{r, fig.width = 8, fig.height = 4}
 # set a seed to obtain same pattern for stochastic methods
 set.seed(123)
@@ -385,13 +405,16 @@ df_PCA <- pca_result$x %>%
   mutate(cluster = recode(cluster, `2` = 3, `3` = 2, `1` = 1))
 
 plot_pca <- xyplot(PC2 ~ PC1, df_PCA,
-    groups = cluster, z = 0.3+rescale(df_PCA$PC3),
+    groups = cluster, z = scales::rescale(df_PCA$PC3, to = c(0.4, 1.4), from = c(-0.5,0.5)),
     par.settings = custom.colorblind(), label = df_PCA$mutation,
     aspect = 1, main = "PCA",
     panel = function(x, y, z, label, ...) {
       panel.grid(h = -1, v = -1, col = grey(0.9))
       tactile::panel.bubbleplot(x, y, z, ...)
       panel.key(..., cex = 0.7, corner = c(0.98, 0.98))
+      panel.key(labels = "-0.5", cex = 0.7, point.cex = 0.4, corner = c(0.98, 0.8), col = grey(0.5))
+      panel.key(labels = " 0.0", cex = 0.7, point.cex = 0.9, corner = c(0.98, 0.74), col = grey(0.5))
+      panel.key(labels = " 0.5", cex = 0.7, point.cex = 1.4, corner = c(0.98, 0.68), col = grey(0.5))
       panel.repellabels(x, y, labels = label, cex = 0.5, draw_box = TRUE,
         box_fill = grey(0.9, alpha = 0.7), ...)
     }
@@ -399,6 +422,13 @@ plot_pca <- xyplot(PC2 ~ PC1, df_PCA,
 
 print(plot_nmds, split = c(1,1,2,1), more = TRUE)
 print(plot_pca, split = c(2,1,2,1))
+```
+
+```{r, include = FALSE}
+svg("../figures/figure_pca.svg", width = 8, height = 4)
+print(plot_nmds, split = c(1,1,2,1), more = TRUE)
+print(plot_pca, split = c(2,1,2,1))
+dev.off()
 ```
 
 Some details on the PCA result:
