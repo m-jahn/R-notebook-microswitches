@@ -20,9 +20,12 @@ Different types of experimental data ares available:
 
 - `data/input/FZD_mutations.csv` - original GPCR computer model prediction of mutant effects
 - `data/input/DVL_shift.csv` - Dishevelled (DVL) shift assay. Measures the phosphorylation status of the intracellular signal protein DVL through the FZD5 receptor (and its mutants)
-- `data/input/DEP_recruitment.csv` - DEP recruitment assay. DEP is a truncated DVL and recruitment is measured via BRET, that indicates proximity of the two proteins with fluorescence transfer
-- `data/input/TOPFlash.csv` - Top flash assay. Measures if a target gene of the beta-catenin signaling pathway becomes activated, relative to WT
-- `data/input/Gq4Ains.csv` - 
+- `data/input/DEP_recruitment.csv` - DEP recruitment assay. Measurement of recruitment of DEP as
+an isolated domain of DVL via BRET, that indicates proximity of the two proteins.
+- `data/input/TOPFlash.csv` - Top flash assay. Luciferase-based gene reporter assay to assess the activity of the WNT/β-catenin signaling branch.
+- `data/input/GqIns4A.csv` - ...
+- `data/input/bretmax` - ...
+- `data/input/bretzero` - ...
 
 # Prerequisites
 
@@ -84,7 +87,7 @@ df_top_flash <- read_csv("../data/input/TOPFlash.csv", col_types = cols()) %>%
   left_join(df_nom, by = "mutation") %>%
   mutate(mutation_bw = factor(mutation_bw, unique(mutation_bw)))
 
-df_gq4a <- read_csv("../data/input/Gq4Ains.csv", col_types = cols()) %>%
+df_gq4a <- read_csv("../data/input/GqIns4A.csv", col_types = cols()) %>%
   left_join(df_nom, by = "mutation") %>%
   mutate(mutation_bw = factor(mutation_bw, unique(mutation_bw)))
 
@@ -242,11 +245,12 @@ df_summary <- df_combined %>%
 head(df_summary)
 ```
 
-Check pairwise correlation of variables.
+Check pairwise correlation of variables. Notable correlations:
 
-- DVL shift and top flash is correlated
-- DVL shift and BRET max is correlated
-- BRET 50 is anti-correlated DVL shift and top flash
+- TOPFlash is negatively correlated with BRET50
+- GQ-4A insertion is negatively correlated with BRET0 and positively with BRETmax
+- DVL shift assay is negatively correlated with BRET50 and positively with BRETmax
+- BRETmax is negatively correlated with BRET0
 
 ```{r, fig.width = 6, fig.height = 6}
 fig_splom <- df_summary %>% select(-sd_value) %>%
@@ -304,6 +308,7 @@ How many clusters are optimal?
 Use silhouette analysis to determine optimal number of clusters.
 
 ```{r, fig.width = 4, fig.height = 4}
+# devtools::install_github("m-jahn/R-tools")
 silhouette_result <- Rtools::silhouette_analysis(mat = mat_heatmap, n_repeats = 20)
 n_clusters <- silhouette_result$optimal_n_clust
 paste("Optimal number of clusters is: ", n_clusters)
