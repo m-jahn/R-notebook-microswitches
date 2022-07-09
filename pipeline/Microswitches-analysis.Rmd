@@ -23,9 +23,9 @@ Different types of experimental data ares available:
 - `data/input/DEP_recruitment.csv` - DEP recruitment assay. Measurement of recruitment of DEP as
 an isolated domain of DVL via BRET, that indicates proximity of the two proteins.
 - `data/input/TOPFlash.csv` - Top flash assay. Luciferase-based gene reporter assay to assess the activity of the WNT/β-catenin signaling branch.
-- `data/input/GqIns4A.csv` - ...
-- `data/input/bretmax` - ...
-- `data/input/bretzero` - ...
+- `data/input/GqIns4A.csv` - An assay for G protein signaling to assess constitutive activation between Gq and FZD5. Uses an engineered G-alpha subunit.
+- `data/input/bretmax` - Maximal BRET values from BRET readout between FZD5 and DEP.
+- `data/input/bretzero` - Minimal BRET values from BRET readout between FZD5 and DEP.
 
 # Prerequisites
 
@@ -255,7 +255,7 @@ Check pairwise correlation of variables. Notable correlations:
 ```{r, fig.width = 6, fig.height = 6}
 fig_splom <- df_summary %>% select(-sd_value) %>%
   pivot_wider(values_from = mean_value, names_from = type) %>%
-  select(matches("BRET|DVL|GQ4|TOP")) %>%
+  select(matches("BRET|DVL|GQ|TOP")) %>%
   custom_splom(pch = 19, cex = 1, col = grey(0.4, 0.4),
     col_palette = custom_range(10))
 
@@ -295,7 +295,7 @@ In order to make different variables comparable, we rescale every var to a range
 mat_summary <- df_summary %>%
   select(-sd_value, -mutation, -mutation_bwform) %>%
   pivot_wider(values_from = mean_value, names_from = type) %>%
-  select(matches("^mutation|BRET|DVL|GQ4|TOP")) %>%
+  select(matches("^mutation|BRET|DVL|GQ|TOP")) %>%
   column_to_rownames(var = "mutation_bw") %>%
   as.matrix %>% apply(2, rescale)
 
@@ -360,7 +360,7 @@ plot_cluster_dend <- mat_cluster %>% as.dendrogram %>%
 gridExtra::grid.arrange(
   # coords for unit: top, right, bottom, left
   plot_cluster_dend + 
-    theme(plot.margin = unit(c(0.25, 0.118, -0.28, 0.172),"npc")),
+    theme(plot.margin = unit(c(0.25, 0.118, -0.28, 0.132),"npc")),
   plot_heatmap,
   nrow = 2
 )
