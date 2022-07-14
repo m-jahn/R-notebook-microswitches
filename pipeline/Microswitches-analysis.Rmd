@@ -29,6 +29,15 @@ an isolated domain of DVL via BRET, that indicates proximity of the two proteins
 
 # Prerequisites
 
+```{r}
+if (!"latticetools" %in% rownames(installed.packages())) {
+  devtools::install_github("m-jahn/lattice-tools")
+}
+if (!"Rtools" %in% rownames(installed.packages())) {
+  devtools::install_github("m-jahn/R-tools")
+}
+```
+
 Load required packages.
 
 ```{r, message = FALSE }
@@ -51,6 +60,7 @@ Define global figure style, default colors, and other optional parameters.
 # custom ggplot2 theme that is reused for all later plots
 custom_colors = c("#E7298A", "#66A61E", "#E6AB02", "#7570B3", "#B3B3B3", "#1B9E77", "#D95F02", "#A6761D")
 custom_range <- function(n = 5) {colorRampPalette(custom_colors[c(1,5,2)])(n)}
+custom_cluster <- c("#0075B5", "#F5AF1B", "#82549D")
 ```
 
 
@@ -352,7 +362,7 @@ plot_heatmap <- levelplot(mat_heatmap[dend_new_ord, ],
 
 plot_cluster_dend <- mat_cluster %>% as.dendrogram %>%
   rotate(dend_new_ord) %>%
-  set("branches_k_col", custom_colors[1:n_clusters], k = n_clusters) %>%
+  set("branches_k_col", custom_cluster, k = n_clusters) %>%
   set("branches_lwd", 0.5) %>%
   as.ggdend %>%
   ggplot(labels = FALSE)
@@ -371,7 +381,7 @@ svg("../figures/figure_heatmap.svg", width = 7, height = 4.75)
 gridExtra::grid.arrange(
   # coords for unit: top, right, bottom, left
   plot_cluster_dend + 
-    theme(plot.margin = unit(c(0.25, 0.118, -0.28, 0.165),"npc")),
+    theme(plot.margin = unit(c(0.25, 0.118, -0.28, 0.132),"npc")),
   plot_heatmap,
   nrow = 2
 )
@@ -391,6 +401,7 @@ df_nmds <- NMDS$points %>% as_tibble(rownames = "mutation") %>%
 
 plot_nmds <- xyplot(MDS2 ~ MDS1, df_nmds,
     groups = cluster, par.settings = custom.colorblind(),
+    col = custom_cluster,
     aspect = 1, main = "nMDS", label = df_nmds$mutation,
     panel = function(x, y, label, ...) {
       panel.grid(h = -1, v = -1, col = grey(0.9))
@@ -407,11 +418,14 @@ df_PCA <- pca_result$x %>%
   as_tibble(rownames = "mutation") %>%
   left_join(by = "mutation",
     enframe(cutreeord(mat_cluster, k = n_clusters), "mutation", "cluster")) %>%
-  mutate(cluster = recode(cluster, `2` = 3, `3` = 2, `1` = 1))
+  mutate(cluster = recode(cluster, `2` = 3, `3` = 2, `1` = 1)) %>%
+  mutate(PC2 = PC2*-1)
 
 plot_pca <- xyplot(PC2 ~ PC1, df_PCA,
     groups = cluster, z = scales::rescale(df_PCA$PC3, to = c(0.4, 1.4), from = c(-0.5,0.5)),
-    par.settings = custom.colorblind(), label = df_PCA$mutation,
+    par.settings = custom.colorblind(),
+    col = custom_cluster,
+    label = df_PCA$mutation,
     aspect = 1, main = "PCA",
     panel = function(x, y, z, label, ...) {
       panel.grid(h = -1, v = -1, col = grey(0.9))
@@ -482,7 +496,9 @@ print(plot_pca_var, split = c(2,1,2,1))
 To plot activity data on an SVG map of a receptor, we need the custom R package `fluctuator` that can import and manipulate SVG graphic files.
 
 ```{r, eval = FALSE}
-devtools::install_github("m-jahn/fluctuator")
+if (!"fluctuator" %in% rownames(installed.packages())) {
+  devtools::install_github("m-jahn/fluctuator")
+}
 ```
 
 Import the SVG of the 'snakeplot', the representation of a receptor as AA residues curled in their different membrane spanning domains.
