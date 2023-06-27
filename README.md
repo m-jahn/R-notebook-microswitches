@@ -1,5 +1,10 @@
 # R-notebook-microswitches
 
+![Last commit](https://img.shields.io/github/last-commit/m-jahn/r-notebook-microswitches/main)
+[![Published](https://img.shields.io/badge/Published-Nat.Comm.2023-green.svg)](https://github.com/m-jahn)
+[![DOI](https://zenodo.org/badge/476293457.svg)](https://zenodo.org/badge/latestdoi/476293457)
+
+
 Analysis of human Frizzled 5 receptor mutants.
 
 ### Overview
